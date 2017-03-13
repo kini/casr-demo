@@ -6,6 +6,7 @@ import List.Extra as L
 import Html exposing (..)
 import Svg exposing (..)
 import Svg.Attributes exposing (..)
+import Svg.Events exposing (..)
 import Time exposing (Time, second)
 
 type alias Loc2d = (Int, Int)
@@ -38,11 +39,17 @@ getRow i m =
 getCell : Loc2d -> Mat -> Int
 getCell (x, y) m = getBit x (getRow y m)
 
-setAt : Int -> Int -> List Int -> List Int
+setAt : Int -> a -> List a -> List a
 setAt pos val xs =
     case L.setAt pos val xs of
         Nothing -> xs
         Just xs1 -> xs1
+
+toggleCell : Loc2d -> Mat -> Mat
+toggleCell (i, j) m =
+    let row = getRow j m
+        bit = getBit i row
+    in setAt j (setAt i (Bitwise.xor 1 bit) row) m
 
 
 -- Reg and Mat builder functions
@@ -179,10 +186,10 @@ modelDim model = L.length model.reg
 
 init : (Model, Cmd Msg)
 init =
-    ( { matrix = myBadCASR47
-      , reg = bottomBitOnReg 47
+    ( { matrix = smallLFSR
+      , reg = bottomBitOnReg 5
       , ghosts = []
-      , interval = Just (second / 16)
+      , interval = Just (second / 2)
       , height = 400
       }
     , Cmd.none
@@ -191,6 +198,9 @@ init =
 -- UPDATE
 
 type Msg = Tick
+         | ToggleMatCell Loc2d
+
+
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
@@ -200,6 +210,12 @@ update msg model =
                   | reg = evolveReg model.matrix model.reg
                   , ghosts = L.take (maxGhosts model)
                              (model.reg :: model.ghosts)
+              }
+            , Cmd.none
+            )
+        ToggleMatCell pos ->
+            ( { model
+                  | matrix = toggleCell pos model.matrix
               }
             , Cmd.none
             )
@@ -244,6 +260,7 @@ viewMatCell model (i, j) =
             -- , color "black"
             , width (toString size)
             , height (toString size)
+            , onClick (ToggleMatCell (i, j))
             ]
         []
 
