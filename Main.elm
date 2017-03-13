@@ -3,6 +3,9 @@ module Main exposing (..)
 import Bitwise
 import List as L
 import List.Extra as L
+import Html exposing (..)
+import Svg exposing (..)
+import Time exposing (Time, second)
 
 type alias Loc2d = (Int, Int)
 
@@ -69,3 +72,65 @@ makeCASR =
                      getBit x diagonal
                  else if x - y == 1 || y - x == 1 then 1 else 0)
 
+
+-- Linear algebra functions
+
+dotProduct : Reg -> Reg -> Int
+dotProduct r1 r2 =
+    let hadamardProduct = L.map2 Bitwise.and r1 r2
+    in L.foldr Bitwise.xor 0 hadamardProduct
+
+evolveReg : Mat -> Reg -> Reg
+evolveReg m r =
+    L.map (\i -> dotProduct r (getRow i m)) (L.range 0 (L.length r - 1))
+
+
+-- ENTRY
+
+main = Html.program { init = init
+                    , view = view
+                    , update = update
+                    , subscriptions = subscriptions
+                    }
+
+-- MODEL
+
+type alias Model =
+    { matrix : Mat
+    , reg : Reg
+    , ghosts : List Reg
+
+    , numGhosts : Int
+    }
+
+init : (Model, Cmd Msg)
+init =
+    ( { matrix = makeCASR [0,0,1,1,0]
+      , reg = [0,0,0,0,1]
+      , ghosts = []
+      , numGhosts = 0
+      }
+    , Cmd.none)
+
+-- UPDATE
+
+type Msg = Tick
+
+update : Msg -> Model -> (Model, Cmd Msg)
+update msg model =
+    case msg of
+        Tick ->
+            ( { model | reg = evolveReg model.matrix model.reg}
+            , Cmd.none
+            )
+
+-- SUBSCRIPTIONS
+
+subscriptions : Model -> Sub Msg
+subscriptions model = Time.every second (\x -> Tick)
+
+-- VIEW
+
+view : Model -> Html Msg
+view model =
+    div [] (L.map (toString >> Html.text) model.reg)
