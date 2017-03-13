@@ -100,15 +100,15 @@ type alias Model =
     , reg : Reg
     , ghosts : List Reg
 
-    , numGhosts : Int
+    , maxGhosts : Int
     }
 
 init : (Model, Cmd Msg)
 init =
-    ( { matrix = makeCASR [0,0,1,1,0]
+    ( { matrix = makeLFSR [0,0,1,0,1]
       , reg = [0,0,0,0,1]
       , ghosts = []
-      , numGhosts = 0
+      , maxGhosts = 5
       }
     , Cmd.none)
 
@@ -120,17 +120,22 @@ update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
     case msg of
         Tick ->
-            ( { model | reg = evolveReg model.matrix model.reg}
+            ( { model
+                  | reg = evolveReg model.matrix model.reg
+                  , ghosts = L.take model.maxGhosts (model.reg :: model.ghosts)
+              }
             , Cmd.none
             )
 
 -- SUBSCRIPTIONS
 
 subscriptions : Model -> Sub Msg
-subscriptions model = Time.every second (\x -> Tick)
+subscriptions model = Time.every (second / 4) (\x -> Tick)
 
 -- VIEW
 
 view : Model -> Html Msg
 view model =
-    div [] (L.map (toString >> Html.text) model.reg)
+    div [] (L.map (toString >> Html.text) model.reg
+                ++ [br [] []]
+                ++ L.intercalate [br [] []] (L.map (L.map (toString >> Html.text)) model.ghosts))
