@@ -1,27 +1,57 @@
 module Main exposing (..)
 
-import Array as A
+import Bitwise
 import List as L
+import List.Extra as L
 
 type alias Loc2d = (Int, Int)
 
-type alias Reg = A.Array Int
+type alias Reg = List Int
 
 -- Unchecked invariant: the matrix is square, i.e. A.length m ==
 -- A.length (get i m) for any i, modulo Maybe shenanigans
-type alias Mat = A.Array Reg
+type alias Mat = List Reg
+
+-- Functions to extend these things infinitely with zeros,
+-- conceptually.  Shouldn't be necessary to tread outside established
+-- locations, but just in case (and to satisfy the types).
+
+getBit : Int -> Reg -> Int
+getBit i r =
+    case L.getAt i r of
+        Nothing -> 0
+        Just b -> b
+
+getRow : Int -> Mat -> Reg
+getRow i m =
+    case L.getAt i m of
+        Nothing -> zeroReg (L.length m)
+        Just r -> r
+
+getCell : Loc2d -> Mat -> Int
+getCell (x, y) m = getBit y (getRow x m)
+
+
+-- Reg and Mat builder functions
 
 zeroReg : Int -> Reg
-zeroReg n = A.repeat n 0
+zeroReg n = L.repeat n 0
 
 zeroMat : Int -> Mat
-zeroMat n = A.repeat n (zeroReg n)
+zeroMat n = L.repeat n (zeroReg n)
+
+makeList : Int -> (Int -> a) -> List a
+makeList len f =
+    let helper i len f =
+            if (i >= len) then []
+            else f i :: helper (i + 1) len f
+    in helper 0 len f
 
 makeMat : (Reg -> Int -> Int -> Int) -> Reg -> Mat
 makeMat f vector =
-    let dim = A.length vector
-    in A.map (\x -> A.initialize dim (f vector x))
-        (A.fromList (L.range 0 (dim - 1)))
+    let dim = L.length vector
+    in L.map (\x -> makeList dim (f vector x))
+        (L.range 0 (dim - 1))
 
 -- make a LFSR by specifying the taps for producing the 0th bit
 makeLFSR : Reg -> Mat
@@ -39,21 +69,3 @@ makeCASR =
                      getBit x diagonal
                  else if x - y == 1 || y - x == 1 then 1 else 0)
 
--- Functions to extend these things infinitely with zeros,
--- conceptually.  Shouldn't be necessary to tread outside established
--- locations, but just in case (and to satisfy the types).
-
-getBit : Int -> Reg -> Int
-getBit i r =
-    case A.get i r of
-        Nothing -> 0
-        Just b -> b
-
-getRow : Int -> Mat -> Reg
-getRow i m =
-    case A.get i m of
-        Nothing -> zeroReg (A.length m)
-        Just r -> r
-
-getCell : Loc2d -> Mat -> Int
-getCell (x, y) m = getBit y (getRow x m)
