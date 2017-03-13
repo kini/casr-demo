@@ -38,6 +38,12 @@ getRow i m =
 getCell : Loc2d -> Mat -> Int
 getCell (x, y) m = getBit x (getRow y m)
 
+setAt : Int -> Int -> List Int -> List Int
+setAt pos val xs =
+    case L.setAt pos val xs of
+        Nothing -> xs
+        Just xs1 -> xs1
+
 
 -- Reg and Mat builder functions
 
@@ -80,9 +86,9 @@ makeCASR =
 makeBadCASR : Reg -> Mat
 makeBadCASR =
     makeMat (\ diagonal x y ->
-                 if x - y == 1 then
+                 if x - y == -1 then
                      getBit x diagonal
-                 else if x - y == 0 || x - y == -1 then 1 else 0)
+                 else if x - y == 0 || x - y == 1 then 1 else 0)
 
 
 -- specific LFSRs and CASRs
@@ -131,7 +137,6 @@ type alias Model =
     , reg : Reg
     , ghosts : List Reg
 
-    , maxGhosts : Int
     , interval : Maybe Time
     , height : Int
     }
@@ -141,14 +146,15 @@ modelDim model = L.length model.reg
 
 init : (Model, Cmd Msg)
 init =
-    ( { matrix = myCASR47
-      , reg = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1]
+    ( { matrix = smallLFSR
+      -- , reg = setAt 23 1 (L.repeat 47 0)
+      , reg = [0, 0, 0, 0, 1]
       , ghosts = []
-      , maxGhosts = 5
-      , interval = Just (second / 16)
+      , interval = Just (second / 4)
       , height = 400
       }
-    , Cmd.none)
+    , Cmd.none
+    )
 
 -- UPDATE
 
@@ -160,7 +166,7 @@ update msg model =
         Tick ->
             ( { model
                   | reg = evolveReg model.matrix model.reg
-                  , ghosts = L.take model.maxGhosts
+                  , ghosts = L.take (maxGhosts model)
                              (model.reg :: model.ghosts)
               }
             , Cmd.none
@@ -219,26 +225,74 @@ bitWidth : Model -> Int -- as in, graphically...
 bitWidth model = clamp 10 100 (bitHeight model)
 
 regPos : Model -> Loc2d
-regPos model = (10 + model.height + 50, 10)
+regPos model = (10 + model.height + 10, 10)
+
+ghostSpacing : Model -> Int
+ghostSpacing model = bitWidth model // 10
 
 ghostPos : Model -> Int -> Loc2d
 ghostPos model idx =
-    let ghostStart = add2d (regPos model)
-                     (bitWidth model + 25 + bitWidth model + 25, 0)
-    in add2d ghostStart ((bitWidth model + 25) * idx, 0)
+    let myWidth = bitWidth model
+        spacing = ghostSpacing model
+        ghostStart = add2d (regPos model)
+                     (myWidth + spacing + myWidth + spacing, 0)
+    in add2d ghostStart ((myWidth + spacing) * idx, 0)
+
+maxGhosts : Model -> Int
+maxGhosts model =
+    let myWidth = bitWidth model
+        spacing = ghostSpacing model
+        (start, _) = ghostPos model 0
+    in (990 - start) // (myWidth + spacing)
 
 viewRegBit : Model -> Int -> Html Msg
-viewRegBit model idx =
+viewRegBit model ib =
     let (x0, y0) = regPos model
-        mycolor = if getBit idx model.reg == 1 then "black" else "white"
-    in rect [ x (toString x0)
-               , y (toString (y0 + idx * bitHeight model))
+        myWidth = bitWidth model
+        myHeight = bitHeight model
+        mycolor = if getBit ib model.reg == 1 then "black" else "white"
+        viewArrow ib2 =
+            let (xg, yg) = ghostPos model 0
+            in line [ x1 (toString (x0 + myWidth))
+                    , y1 (toString (y0 + myHeight * (2 * ib + 1) // 2))
+                    , x2 (toString xg)
+                    , y2 (toString (yg + myHeight * (2 * ib2 + 1) // 2))
+                    , stroke "blue"
+                    ] []
+    in g []
+        [ rect [ x (toString x0)
+               , y (toString (y0 + ib * bitHeight model))
                , fill mycolor
-               , rx (toString (bitWidth model // 8))
-               , ry (toString (bitHeight model // 8))
+               -- , rx (toString (bitWidth model // 8))
+               -- , ry (toString (bitHeight model // 8))
                , width (toString (bitWidth model))
                , height (toString (bitHeight model))
                ] []
+        , g []
+            (L.map viewArrow (L.filter
+                                  (\i -> getBit i (getRow ib model.matrix) == 1)
+                                  (L.range 0 (modelDim model))))
+        ]
+
+viewGhostBit : Model -> Int -> Int -> Html Msg
+viewGhostBit model ig ib =
+    let (x0, y0) = ghostPos model ig
+        myWidth = bitWidth model
+        myHeight = bitHeight model
+        mycolor = if getBit ib (getRow ig model.ghosts) == 1 then "black" else "white"
+    in rect [ x (toString x0)
+            , y (toString (y0 + ib * bitHeight model))
+            , fill mycolor
+            -- , rx (toString (bitWidth model // 8))
+            -- , ry (toString (bitHeight model // 8))
+            , width (toString (bitWidth model))
+            , height (toString (bitHeight model))
+            ] []
+
+viewGhost : Model -> Int -> Html Msg
+viewGhost model ig =
+    g [ stroke "black", opacity "0.9" ]
+        (L.map (viewGhostBit model ig) (L.range 0 (modelDim model - 1)))
 
 range2d : Int -> Int -> List Loc2d
 range2d a b = L.concat (L.map (\y -> L.map (\x -> (x, y)) (L.range 0 (a - 1))) (L.range 0 (b - 1)))
@@ -250,4 +304,5 @@ view model =
         [ rect [ x "0", y "0", width "100%", height "100%", fill "gray" ] []
         , g [ stroke "black" ] (L.map (viewMatCell model) (range2d dim dim))
         , g [ stroke "black" ] (L.map (viewRegBit model) (L.range 0 (dim - 1)))
+        , g [ stroke "black" ] (L.map (viewGhost model) (L.range 0 (L.length model.ghosts - 1)))
         ]
