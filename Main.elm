@@ -99,7 +99,7 @@ smallLFSR = makeLFSR [0,0,1,0,1]
 smallCASR : Mat
 smallCASR = makeCASR [0,0,1,1,0]
 
--- these are from Hortensius
+-- these are from Hortensius et al.
 myCASR53 : Mat
 myCASR53 = makeCASR [1,0,0,0,0,1,1,1,0,0,1,0,1,0,0,0,1,0,0,0,0,0,1,0,0,1,0,0,1,1,0,0,1,0,1,1,1,0,1,1,1,1,1,0,1,1,0,0,1,0,1,0,1]
 myCASR47 : Mat
@@ -108,6 +108,39 @@ myBadCASR53 : Mat
 myBadCASR53 = makeBadCASR [1,0,0,0,0,1,1,1,0,0,1,0,1,0,0,0,1,0,0,0,0,0,1,0,0,1,0,0,1,1,0,0,1,0,1,1,1,0,1,1,1,1,1,0,1,1,0,0,1,0,1,0,1]
 myBadCASR47 : Mat
 myBadCASR47 = makeBadCASR [0,0,1,1,1,0,0,1,0,1,1,1,1,1,1,0,0,1,1,1,0,0,1,0,1,0,1,0,0,1,0,0,0,1,0,1,1,1,0,0,0,0,0,1,1,0,1]
+
+-- These are from Zhang et al.
+myCASRMin53 : Mat
+myCASRMin53 = makeCASR [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+myCASRMin47 : Mat
+myCASRMin47 = makeCASR [0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+
+-- these are from Xilinx
+myLFSRMin53 : Mat
+myLFSRMin53 = makeLFSR [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1]
+myLFSRMin47 : Mat
+myLFSRMin47 = makeLFSR [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1]
+
+-- these
+
+-- these are some registers to start or end with
+topBitOnReg : Int -> Reg
+topBitOnReg n = setAt 0 1 (L.repeat n 0)
+
+bottomBitOnReg : Int -> Reg
+bottomBitOnReg n = setAt (n - 1) 1 (L.repeat n 0)
+
+middleBitOnReg : Int -> Reg
+middleBitOnReg n = setAt (n // 2) 1 (L.repeat n 0)
+
+alternatingReg : Int -> Reg
+alternatingReg n =
+    if n % 2 == 0 then
+        L.interweave (L.repeat (n // 2) 0) (L.repeat (n // 2) 1)
+    else 1 :: alternatingReg (n - 1)
+
+invertReg : Reg -> Reg
+invertReg r = L.map (\x -> Bitwise.xor 1 x) r
 
 -- Linear algebra functions
 
@@ -146,11 +179,10 @@ modelDim model = L.length model.reg
 
 init : (Model, Cmd Msg)
 init =
-    ( { matrix = smallLFSR
-      -- , reg = setAt 23 1 (L.repeat 47 0)
-      , reg = [0, 0, 0, 0, 1]
+    ( { matrix = myBadCASR47
+      , reg = bottomBitOnReg 47
       , ghosts = []
-      , interval = Just (second / 4)
+      , interval = Just (second / 16)
       , height = 400
       }
     , Cmd.none
@@ -257,6 +289,7 @@ viewRegBit model ib =
                     , y1 (toString (y0 + myHeight * (2 * ib + 1) // 2))
                     , x2 (toString xg)
                     , y2 (toString (yg + myHeight * (2 * ib2 + 1) // 2))
+                    , strokeWidth "2"
                     , stroke "blue"
                     ] []
     in g []
