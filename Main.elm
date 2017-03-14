@@ -131,7 +131,11 @@ myLFSRMin53 = makeLFSR [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 myLFSRMin47 : Mat
 myLFSRMin47 = makeLFSR [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1]
 
--- these
+-- these are just some I made
+myLFSR53 : Mat
+myLFSR53 = makeLFSR [1,1,1,0,0,0,1,1,0,1,1,0,0,1,1,0,0,0,1,0,0,1,0,1,1,1,1,1,0,0,0,0,1,0,1,0,1,0,1,1,1,1,0,1,1,1,0,1,0,1,0,1,1]
+myLFSR47 : Mat
+myLFSR47 = makeLFSR [1,1,0,0,1,0,0,1,1,0,1,0,0,0,0,0,1,1,0,0,1,1,1,0,1,1,1,0,0,1,1,1,0,0,1,0,0,1,0,1,1,0,1,0,0,1,1]
 
 -- these are some registers to start or end with
 topBitOnReg : Int -> Reg
@@ -180,7 +184,8 @@ type alias Model =
     , reg : Reg
     , ghosts : List Reg
 
-    , interval : Maybe Time
+    , interval : Time
+    , paused : Bool
     , height : Int
     }
 
@@ -189,10 +194,11 @@ modelDim model = L.length model.reg
 
 init : (Model, Cmd Msg)
 init =
-    ( { matrix = smallLFSR
-      , reg = bottomBitOnReg 5
+    ( { matrix = makeCASR [0,1,0,0,1,0,1,1]
+      , reg = alternatingReg 8
       , ghosts = []
-      , interval = Just (second / 2)
+      , interval = second
+      , paused = False
       , height = 400
       }
     , Cmd.none
@@ -203,32 +209,44 @@ init =
 type Msg = Tick
          | ToggleMatCell Loc2d
          | ToggleBit Int
+         | PresetMat Int
 
-
+presets : Int -> (Mat, Int)
+presets i =
+    case i of
+        0 -> (smallLFSR, 5)
+        1 -> (myLFSR47, 47)
+        2 -> (smallCASR, 5)
+        3 -> (myCASR47, 47)
+        4 -> (myBadCASR47, 47)
+        otherwise -> (zeroMat 8, 8)
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
-    case msg of
+    (case msg of
         Tick ->
-            ( { model
-                  | reg = evolveReg model.matrix model.reg
-                  , ghosts = L.take (maxGhosts model)
-                             (model.reg :: model.ghosts)
-              }
-            , Cmd.none
-            )
+         { model
+             | reg = evolveReg model.matrix model.reg
+             , ghosts = L.take (maxGhosts model)
+               (model.reg :: model.ghosts)
+         }
         ToggleMatCell pos ->
-            ( { model
-                  | matrix = toggleCell pos model.matrix
-              }
-            , Cmd.none
-            )
+         { model
+             | matrix = toggleCell pos model.matrix
+         }
         ToggleBit pos ->
-            ( { model
-                  | reg = toggleBit pos model.reg
-              }
-            , Cmd.none
-            )
+         { model
+             | reg = toggleBit pos model.reg
+         }
+        PresetMat i ->
+         let (newMat, n) = presets i in
+         { model
+             | matrix = newMat
+             , reg = zeroReg n
+         }
+    , Cmd.none
+    )
+
 
 -- SUBSCRIPTIONS
 
@@ -237,9 +255,9 @@ const c = \x -> c
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    case model.interval of
-        Nothing -> Sub.none
-        Just interval -> Time.every interval (const Tick)
+    if model.paused then
+        Sub.none
+    else Time.every model.interval (const Tick)
 
 -- VIEW
 
@@ -352,11 +370,50 @@ viewGhostBit model ig ib =
 
 viewGhost : Model -> Int -> Html Msg
 viewGhost model ig =
-    g [ stroke "black", opacity "0.9" ]
+    g [ stroke "black"
+      -- , opacity (toString (1.0 - 0.5 * (toFloat ig) / (toFloat (maxGhosts model))))
+      ]
         (L.map (viewGhostBit model ig) (L.range 0 (modelDim model - 1)))
 
 range2d : Int -> Int -> List Loc2d
 range2d a b = L.concat (L.map (\y -> L.map (\x -> (x, y)) (L.range 0 (a - 1))) (L.range 0 (b - 1)))
+
+viewSeparator : Model -> Html Msg
+viewSeparator model = line [ x1 "10"
+                           , y1 (toString (10 + model.height + 10))
+                           , x2 "990"
+                           , y2 (toString (10 + model.height + 10))
+                           , stroke "darkgreen"
+                           , strokeWidth "5"
+                           ] []
+
+-- presetBtnSize : Model -> Int
+-- presetBtnSize model =
+--     let numBtns = 1
+--     in clamp 0 30 (model.height // numBtns)
+
+viewButton : Loc2d -> Msg -> Html Msg
+viewButton pos msg =
+    let (x0, y0) = pos
+        size = 50
+        radius = size // 2
+        (xc, yc) = (x0 + radius, y0 + radius)
+    in circle [ cx (toString xc)
+              , cy (toString yc)
+              , r (toString radius)
+              , fill "#0B79CE"
+              , onClick msg
+              ] []
+
+presetButtons model =
+    let top = 10 + model.height + 10 + 10
+    in g [ stroke "black" ]
+        [ viewButton (10, top) (PresetMat 0)
+        , viewButton (70, top) (PresetMat 1)
+        , viewButton (130, top) (PresetMat 2)
+        , viewButton (190, top) (PresetMat 3)
+        , viewButton (250, top) (PresetMat 4)
+        ]
 
 view : Model -> Html Msg
 view model =
@@ -366,4 +423,6 @@ view model =
         , g [ stroke "black" ] (L.map (viewMatCell model) (range2d dim dim))
         , g [ stroke "black" ] (L.map (viewRegBit model) (L.range 0 (dim - 1)))
         , g [ stroke "black" ] (L.map (viewGhost model) (L.range 0 (L.length model.ghosts - 1)))
+        , viewSeparator model
+        , presetButtons model
         ]
