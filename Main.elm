@@ -194,8 +194,8 @@ modelDim model = L.length model.reg
 
 init : (Model, Cmd Msg)
 init =
-    ( { matrix = makeCASR [0,1,0,0,1,0,1,1]
-      , reg = alternatingReg 8
+    ( { matrix = smallLFSR
+      , reg = alternatingReg 5
       , ghosts = []
       , interval = second
       , paused = False
@@ -210,6 +210,9 @@ type Msg = Tick
          | ToggleMatCell Loc2d
          | ToggleBit Int
          | PresetMat Int
+         | PausePlay
+         | SpeedUp
+         | SlowDown
 
 presets : Int -> (Mat, Int)
 presets i =
@@ -244,6 +247,12 @@ update msg model =
              | matrix = newMat
              , reg = zeroReg n
          }
+        PausePlay ->
+         { model | paused = not model.paused }
+        SpeedUp ->
+         { model | interval = model.interval / 2 }
+        SlowDown ->
+         { model | interval = model.interval * 2 }
     , Cmd.none
     )
 
@@ -383,7 +392,7 @@ viewSeparator model = line [ x1 "10"
                            , y1 (toString (10 + model.height + 10))
                            , x2 "990"
                            , y2 (toString (10 + model.height + 10))
-                           , stroke "darkgreen"
+                           , stroke "white"
                            , strokeWidth "5"
                            ] []
 
@@ -418,6 +427,7 @@ presetButtons model =
 view : Model -> Html Msg
 view model =
     let dim = modelDim model
+        btnTop = 10 + model.height + 10 + 10
     in svg [ viewBox "0 0 1000 650", width "1000px" ]
         [ rect [ x "0", y "0", width "100%", height "100%", fill "gray" ] []
         , g [ stroke "black" ] (L.map (viewMatCell model) (range2d dim dim))
@@ -425,4 +435,12 @@ view model =
         , g [ stroke "black" ] (L.map (viewGhost model) (L.range 0 (L.length model.ghosts - 1)))
         , viewSeparator model
         , presetButtons model
+        , rect [ x "760", y (toString btnTop), width "50", height "50", fill "pink"
+               , onClick Tick ] []
+        , rect [ x "820", y (toString btnTop), width "50", height "50", fill "darkgray"
+               , onClick PausePlay ] []
+        , rect [ x "880", y (toString btnTop), width "50", height "50", fill "lightgreen"
+               , onClick SpeedUp ] []
+        , rect [ x "940", y (toString btnTop), width "50", height "50", fill "darkgreen"
+               , onClick SlowDown ] []
         ]
