@@ -195,10 +195,10 @@ modelDim model = L.length model.reg
 init : (Model, Cmd Msg)
 init =
     ( { matrix = smallLFSR
-      , reg = alternatingReg 5
+      , reg = middleBitOnReg 5
       , ghosts = []
       , interval = second
-      , paused = False
+      , paused = True
       , height = 400
       }
     , Cmd.none
