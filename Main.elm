@@ -245,7 +245,8 @@ update msg model =
          let (newMat, n) = presets i in
          { model
              | matrix = newMat
-             , reg = zeroReg n
+             , reg = middleBitOnReg n
+             , ghosts = []
          }
         PausePlay ->
          { model | paused = not model.paused }
@@ -301,6 +302,20 @@ viewMatCell model (i, j) =
             ]
         []
 
+viewColOverlay : Model -> Int -> Html Msg
+viewColOverlay model i =
+    let o = 0.2 * toFloat (case model.ghosts of
+                               [] -> 0
+                               g :: _ -> getBit i g)
+        size = bitHeight model
+        dim = modelDim model
+    in rect [ x (toString (10 + i * size))
+            , y "10"
+            , width (toString size)
+            , height (toString (size * dim))
+            , fill "red"
+            , opacity (toString o)
+            ] []
 
 -- displaying the registers
 
@@ -343,8 +358,8 @@ viewRegBit model ib =
                     , y1 (toString (y0 + myHeight * (2 * ib + 1) // 2))
                     , x2 (toString xg)
                     , y2 (toString (yg + myHeight * (2 * ib2 + 1) // 2))
-                    , strokeWidth "2"
-                    , stroke "blue"
+                    , strokeWidth (toString (clamp 1 10 (myHeight // 10)))
+                    , stroke "red"
                     ] []
     in g []
         [ rect [ x (toString x0)
@@ -414,6 +429,7 @@ viewButton pos msg =
               , onClick msg
               ] []
 
+presetButtons : Model -> Html Msg
 presetButtons model =
     let top = 10 + model.height + 10 + 10
     in g [ stroke "black" ]
@@ -431,11 +447,12 @@ view model =
     in svg [ viewBox "0 0 1000 650", width "1000px" ]
         [ rect [ x "0", y "0", width "100%", height "100%", fill "gray" ] []
         , g [ stroke "black" ] (L.map (viewMatCell model) (range2d dim dim))
+        , g [ ] (L.map (viewColOverlay model) (L.range 0 (dim - 1)))
         , g [ stroke "black" ] (L.map (viewRegBit model) (L.range 0 (dim - 1)))
         , g [ stroke "black" ] (L.map (viewGhost model) (L.range 0 (L.length model.ghosts - 1)))
         , viewSeparator model
         , presetButtons model
-        , rect [ x "760", y (toString btnTop), width "50", height "50", fill "pink"
+        , rect [ x "760", y (toString btnTop), width "50", height "50", fill "green"
                , onClick Tick ] []
         , rect [ x "820", y (toString btnTop), width "50", height "50", fill "darkgray"
                , onClick PausePlay ] []
