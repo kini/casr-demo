@@ -45,6 +45,9 @@ setAt pos val xs =
         Nothing -> xs
         Just xs1 -> xs1
 
+toggleBit : Int -> Reg -> Reg
+toggleBit i r = setAt i (Bitwise.xor 1 (getBit i r)) r
+
 toggleCell : Loc2d -> Mat -> Mat
 toggleCell (i, j) m =
     let row = getRow j m
@@ -199,6 +202,7 @@ init =
 
 type Msg = Tick
          | ToggleMatCell Loc2d
+         | ToggleBit Int
 
 
 
@@ -216,6 +220,12 @@ update msg model =
         ToggleMatCell pos ->
             ( { model
                   | matrix = toggleCell pos model.matrix
+              }
+            , Cmd.none
+            )
+        ToggleBit pos ->
+            ( { model
+                  | reg = toggleBit pos model.reg
               }
             , Cmd.none
             )
@@ -317,6 +327,7 @@ viewRegBit model ib =
                -- , ry (toString (bitHeight model // 8))
                , width (toString (bitWidth model))
                , height (toString (bitHeight model))
+               , onClick (ToggleBit ib)
                ] []
         , g []
             (L.map viewArrow (L.filter
